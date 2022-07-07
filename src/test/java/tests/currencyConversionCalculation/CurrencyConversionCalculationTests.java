@@ -5,12 +5,16 @@ import org.testng.annotations.Test;
 import org.testng.asserts.SoftAssert;
 import pages.CurrencyConversionCalculation;
 import setup.BaseTest;
+import statics.CountriesEnum;
+import utils.Util;
+
+import java.util.List;
 
 import static setup.SeleniumWebDriver.getDriver;
 
 public class CurrencyConversionCalculationTests extends BaseTest {
     @Test
-    public void checkCurrencyConversionCalculationSellAndBuyInputs() throws Exception {
+    public void currencyConversionCalculationSellAndBuyInputsTests() throws Exception {
         SoftAssert softAssert = new SoftAssert();
         CurrencyConversionCalculation currencyConversionCalculation = new CurrencyConversionCalculation().open();
 
@@ -47,4 +51,56 @@ public class CurrencyConversionCalculationTests extends BaseTest {
         }
         softAssert.assertAll();
     }
+
+    @Test
+    public void countryChangeTest() {
+        CountriesEnum country = CountriesEnum.POLAND;
+        SoftAssert softAssert = new SoftAssert();
+        CurrencyConversionCalculation currencyConversionCalculation = new CurrencyConversionCalculation().open();
+
+        String initiallySetCurrency = currencyConversionCalculation.getSellCurrency();
+        List<String> initiallyAvailablePayseraAmounts = currencyConversionCalculation.getColumnCellsByColumnName("Paysera amount");
+
+        currencyConversionCalculation.selectCountry(country);
+        String newCurrency = currencyConversionCalculation.getSellCurrency();
+
+        softAssert.assertFalse(initiallySetCurrency.equals(newCurrency), "The currency was not changed");
+        softAssert.assertNotEquals(currencyConversionCalculation.getColumnCellsByColumnName("Paysera amount"),
+                initiallyAvailablePayseraAmounts, "The rates were not updated");
+        softAssert.assertEquals(newCurrency, Util.getCurrencyCode(country),
+                "The currency does not match to the selected country");
+        softAssert.assertAll();
+    }
+
+    @Test
+    public void conversionLossTest() {
+        SoftAssert softAssert = new SoftAssert();
+        CurrencyConversionCalculation currencyConversionCalculation = new CurrencyConversionCalculation().open();
+        currencyConversionCalculation.selectCountryThatHasEnlargedTable();
+
+        List<String> countryNames = currencyConversionCalculation.getColumnCellsByColumnName("Currency");
+        List<String> initiallyAvailablePayseraAmounts = currencyConversionCalculation.getColumnCellsByColumnName("Paysera amount");
+        List<String> bankProvidersAmounts = currencyConversionCalculation.getIthColumnCells(5);
+
+        for (int i = 0; i < initiallyAvailablePayseraAmounts.size(); i++) {
+            String bankProvidersAmount = bankProvidersAmounts.get(i);
+
+            if (Character.isDigit(bankProvidersAmount.charAt(0))) {
+                double payseraAmount = Double.parseDouble(initiallyAvailablePayseraAmounts.get(i).replace(",", ""));
+
+                String[] rateAndLoss = bankProvidersAmount.split("\n");
+                double rate = Double.parseDouble(rateAndLoss[0].replace(",", ""));
+                if (rateAndLoss.length == 1) {
+                    softAssert.assertEquals(payseraAmount, rate, "Paysera and bank amounts are not equal on "
+                            + countryNames.get(i) + " row, but they should be");
+                } else {
+                    double loss = Double.parseDouble(rateAndLoss[1].replace("(", "").replace(")", "").replace(",", ""));
+                    softAssert.assertEquals(payseraAmount + loss, rate, "Calculated Paysera and bank amounts " +
+                            "difference is incorrect on " + countryNames.get(i) + " row");
+                }
+            }
+        }
+        softAssert.assertAll();
+    }
 }
+
